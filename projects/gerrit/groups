@@ -1,0 +1,5 @@
+# UUID                                  	Group Name
+#
+ldap:cn=${WORKSPACE_NAME}.${PROJECT_NAME}.admin,${OU_GROUPS},${DC}	ldap/${WORKSPACE_NAME}.${PROJECT_NAME}.admin
+ldap:cn=${WORKSPACE_NAME}.${PROJECT_NAME}.developer,${OU_GROUPS},${DC}	ldap/${WORKSPACE_NAME}.${PROJECT_NAME}.developer
+ldap:cn=${WORKSPACE_NAME}.${PROJECT_NAME}.viewer,${OU_GROUPS},${DC}	ldap/${WORKSPACE_NAME}.${PROJECT_NAME}.viewer

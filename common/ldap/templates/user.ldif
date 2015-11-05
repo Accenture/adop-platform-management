@@ -1,0 +1,12 @@
+dn: cn=###VALUE_CN###,###VALUE_OU###,###VALUE_DC###
+cn: ###VALUE_CN###
+displayname: ###VALUE_DISPLAYNAME###
+givenname: ###VALUE_GIVENNAME###
+mail: ###VALUE_MAIL###
+objectclass: inetOrgPerson
+objectclass: organizationalPerson
+objectclass: person
+objectclass: top
+sn: ###VALUE_SN###
+uid: ###VALUE_UID###
+userpassword: ###VALUE_USERPASSWORD###

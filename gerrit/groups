@@ -1,0 +1,1 @@
+ldap:cn=administrators,ou=groups,dc=adop,dc=accenture,dc=com	ldap/administrators

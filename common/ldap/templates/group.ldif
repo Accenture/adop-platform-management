@@ -1,0 +1,4 @@
+dn: cn=###VALUE_CN###,###VALUE_OU###,###VALUE_DC###
+cn: ###VALUE_CN###
+objectclass: groupOfUniqueNames
+objectclass: top
