@@ -15,6 +15,7 @@ generateWorkspaceJob.with{
         stringParam("DEVELOPER_USERS","","The list of users' email addresses that should be setup initially as developers. They will have full access to all non-admin jobs within the project.")
         stringParam("VIEWER_USERS","","The list of users' email addresses that should be setup initially as viewers. They will have read-only access to all non-admin jobs within the project.")
     }
+    label("ldap")
     wrappers {
         preBuildCleanup()
         injectPasswords()
@@ -43,8 +44,9 @@ ${WORKSPACE}/common/ldap/generate_role.sh -r "admin" -n "${WORKSPACE_NAME}" -d "
 ${WORKSPACE}/common/ldap/generate_role.sh -r "developer" -n "${WORKSPACE_NAME}" -d "${DC}" -g "${OU_GROUPS}" -p "${OU_PEOPLE}" -u "${DEVELOPER_USERS}" -f "${OUTPUT_FILE}" -w "${WORKSPACE}"
 ${WORKSPACE}/common/ldap/generate_role.sh -r "viewer" -n "${WORKSPACE_NAME}" -d "${DC}" -g "${OU_GROUPS}" -p "${OU_PEOPLE}" -u "${VIEWER_USERS}" -f "${OUTPUT_FILE}" -w "${WORKSPACE}"
 
-scp -o StrictHostKeyChecking=no ${OUTPUT_FILE} ec2-user@ldap:${OUTPUT_FILE}
-ssh -o StrictHostKeyChecking=no -t -t -y ec2-user@ldap "sudo mv ${OUTPUT_FILE} /data/ldap/config/${OUTPUT_FILE};export IP=\$(hostname --ip-address); sudo docker exec ADOP-LDAP /usr/local/bin/load_ldif.sh -h \${IP} -u ${LDAP_ADMIN_USER} -p ${LDAP_ADMIN_PASSWORD} -b ${DC} -f /etc/ldap/slapd.d/${OUTPUT_FILE}; sudo rm -f /data/ldap/config/${OUTPUT_FILE}"
+set +e
+${WORKSPACE}/common/ldap/load_ldif.sh -h ldap -u "${LDAP_ADMIN_USER}" -p "${LDAP_ADMIN_PASSWORD}" -b "${DC}" -f "${OUTPUT_FILE}"
+set -e
 
 ADMIN_USERS=$(echo ${ADMIN_USERS} | tr ',' ' ')
 DEVELOPER_USERS=$(echo ${DEVELOPER_USERS} | tr ',' ' ')
@@ -54,7 +56,7 @@ VIEWER_USERS=$(echo ${VIEWER_USERS} | tr ',' ' ')
 for user in $ADMIN_USERS $DEVELOPER_USERS $VIEWER_USERS
 do
         username=$(echo ${user} | cut -d'@' -f1)
-        ssh -o StrictHostKeyChecking=no -t -t -y ec2-user@gerrit "sudo docker exec ADOP-Gerrit /var/gerrit/adop_scripts/create_user.sh -u ${username} -p ${username}"
+        ${WORKSPACE}/common/gerrit/create_user.sh -g http://gerrit:8080/gerrit -u "${username}" -p "${username}"
 done''')
         dsl {
             external("workspaces/jobs/**/*.groovy")

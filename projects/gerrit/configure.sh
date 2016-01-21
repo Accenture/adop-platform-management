@@ -7,7 +7,7 @@ cd ${WORKSPACE}/tmp
 
 # Check if the permissions repository already exists or not
 permissions_repo_exists=0
-list_of_repos=$(ssh -i "${JENKINS_HOME}/.ssh/id_rsa" -o StrictHostKeyChecking=no -p 29418 gerrit.service.adop.consul gerrit ls-projects --type permissions)
+list_of_repos=$(ssh -o StrictHostKeyChecking=no -p 29418 jenkins@gerrit gerrit ls-projects --type permissions)
 
 for repo in ${list_of_repos}
 do
@@ -20,13 +20,13 @@ done
 
 # If not, create it
 if [ ${permissions_repo_exists} -eq 0 ]; then
-    ssh -i "${JENKINS_HOME}/.ssh/id_rsa" -o StrictHostKeyChecking=no -p 29418 gerrit.service.adop.consul gerrit create-project --parent "All-Projects" --permissions-only "${permissions_repo_name}"
+    ssh -o StrictHostKeyChecking=no -p 29418 jenkins@gerrit gerrit create-project --parent "All-Projects" --permissions-only "${permissions_repo_name}"
 else
     echo "Repository already exists: ${permissions_repo_name}"
 fi
 
 ## Setup Access Control
-git clone ssh://jenkins@gerrit.service.adop.consul:29418/"${permissions_repo_name}"
+git clone ssh://jenkins@gerrit:29418/"${permissions_repo_name}"
 cd permissions/
 git fetch origin refs/meta/config:refs/remotes/origin/meta/config
 git checkout meta/config
