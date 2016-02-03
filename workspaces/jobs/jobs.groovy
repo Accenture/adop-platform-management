@@ -28,7 +28,7 @@ generateProjectJob.with{
         injectPasswords()
         maskPasswords()
         environmentVariables {
-            env('DC','dc=adop,dc=accenture,dc=com')
+            env('DC',"${DC}")
             env('OU_GROUPS','ou=groups')
             env('OU_PEOPLE','ou=people')
             env('OUTPUT_FILE','output.ldif')

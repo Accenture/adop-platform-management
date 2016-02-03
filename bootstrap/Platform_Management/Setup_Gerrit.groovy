@@ -12,6 +12,9 @@ setupGerritJob.with{
     wrappers {
         preBuildCleanup()
         sshAgent('adop-jenkins-master')
+        environmentVariables {
+            env('DC',"${LDAP_ROOTDN}")
+        }
     }
     steps {
         shell('''#!/bin/bash -ex
@@ -28,7 +31,8 @@ cp ${WORKSPACE}/platform-management/gerrit/project.config .
 
 if ! grep -q "$(cat ${WORKSPACE}/platform-management/gerrit/groups)" groups
 then
-    cat ${WORKSPACE}/platform-management/gerrit/groups >> ${WORKSPACE}/All-Projects/groups
+    perl -p -i -e 's/###([^#]+)###/defined $ENV{$1} ? $ENV{$1} : $&/eg' < "${WORKSPACE}/platform-management/gerrit/groups" 2> /dev/null 1> "${WORKSPACE}/platform-management/gerrit/groups.tokenised"
+    cat ${WORKSPACE}/platform-management/gerrit/groups.tokenised >> ${WORKSPACE}/All-Projects/groups
 else
     echo "Groups already found, skipping"
 fi
