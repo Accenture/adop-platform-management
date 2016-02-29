@@ -41,17 +41,17 @@ loadCartridgeJob.with{
     }
     steps {
         shell('''#!/bin/bash -ex
-        
-# Clone Cartridge
-git clone ${CARTRIDGE_CLONE_URL} cartridge
-
-repo_namespace="${PROJECT_NAME}"
-permissions_repo="${repo_namespace}/permissions"
 
 # We trust everywhere
 echo -e "#!/bin/sh\nexec ssh -o StrictHostKeyChecking=no \"\\\$@\"\n" > ${WORKSPACE}/custom_ssh
 chmod +x ${WORKSPACE}/custom_ssh
 export GIT_SSH="${WORKSPACE}/custom_ssh"
+
+# Clone Cartridge
+git clone ${CARTRIDGE_CLONE_URL} cartridge
+
+repo_namespace="${PROJECT_NAME}"
+permissions_repo="${repo_namespace}/permissions"
 
 # Create repositories
 mkdir ${WORKSPACE}/tmp
