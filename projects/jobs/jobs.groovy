@@ -23,11 +23,16 @@ readFileFromWorkspace("${WORKSPACE}/cartridges.txt").eachLine { line ->
 
 // Jobs
 def loadCartridgeJob = freeStyleJob(cartridgeManagementFolderName + "/Load_Cartridge")
+def loadCartridgeCollectionJob = workflowJob(cartridgeManagementFolderName + "/Load_Cartridge_Collection")
+
 
 // Setup Load_Cartridge
 loadCartridgeJob.with{
     parameters{
         choiceParam('CARTRIDGE_CLONE_URL', cartridge_list, 'Cartridge URL to load')
+        stringParam('CARTRIDGE_FOLDER', '', 'The folder within the project namespace where your cartridge will be loaded into.')
+        stringParam('FOLDER_DISPLAY_NAME', '', 'Display name of the folder where the cartridge is loaded.')
+        stringParam('FOLDER_DESCRIPTION', '', 'Description of the folder where the cartridge is loaded.')
     }
     environmentVariables {
         env('WORKSPACE_NAME',workspaceFolderName)
@@ -134,6 +139,50 @@ fileList.each {
     jenkinsInstace.getItem(projectName,jenkinsInstace).createProjectFromXML(jobName, xmlStream)
 }
 ''')
+        conditionalSteps {
+            condition {
+                shell ('''#!/bin/bash
+
+# Checking to see if folder is specified and project name needs to be updated
+
+if [ -z ${CARTRIDGE_FOLDER} ] ; then
+    echo "Folder name not specified, moving on..."
+    exit 1
+else
+    echo "Folder name specified, changing project name value.."
+    exit 0
+fi
+                ''')
+            }
+            runner('RunUnstable')
+            steps {
+                environmentVariables {
+                    env('CARTRIDGE_FOLDER','${CARTRIDGE_FOLDER}')
+                    env('WORKSPACE_NAME',workspaceFolderName)
+                    env('PROJECT_NAME',projectFolderName + '/${CARTRIDGE_FOLDER}')
+                    env('FOLDER_DISPLAY_NAME','${FOLDER_DISPLAY_NAME}')
+                    env('FOLDER_DESCRIPTION','${FOLDER_DESCRIPTION}')
+                }
+                dsl {
+                    text('''// Creating folder to house the cartridge...
+
+def cartridgeFolderName = "${PROJECT_NAME}"
+def FolderDisplayName = "${FOLDER_DISPLAY_NAME}"
+if (FolderDisplayName=="") {
+    println "Folder display name not specified, using folder name..."
+    FolderDisplayName = "${CARTRIDGE_FOLDER}"
+}
+def FolderDescription = "${FOLDER_DESCRIPTION}"
+println("Creating folder: " + cartridgeFolderName + "...")
+
+def cartridgeFolder = folder(cartridgeFolderName) {
+  displayName(FolderDisplayName)
+  description(FolderDescription)  
+}
+                    ''')
+                }
+            }
+        }
         dsl {
             external("cartridge/jenkins/jobs/dsl/**/*.groovy")
         }
@@ -147,6 +196,68 @@ fileList.each {
                 credentials("adop-jenkins-master")
             }
             branch("*/master")
+        }
+    }
+}
+
+
+// Setup Load_Cartridge Collection
+loadCartridgeCollectionJob.with{
+    parameters{
+        stringParam('COLLECTION_URL', '', 'URL to a JSON file defining your cartridge collection.')
+        stringParam('WORKSPACE_NAME', workspaceFolderName, 'Workspace namespace (DO NOT CHANGE FROM DEFAULT VALUE)')
+        stringParam('PROJECT_NAME', projectFolderName, 'Project namespace (DO NOT CHANGE FROM DEFAULT VALUE)')
+    }
+    properties {
+        rebuild {
+            autoRebuild(false)
+            rebuildDisabled(false)
+        }
+    }
+    environmentVariables {
+        env('WORKSPACE_NAME',workspaceFolderName)
+        env('PROJECT_NAME',projectFolderName)
+    }
+    definition {
+        cps {
+            script('''node {
+
+    sh("wget ${COLLECTION_URL} -O collection.json")
+
+    println "Reading in values from file..."
+    Map data = parseJSON(readFile('collection.json'))
+
+    println(data);
+    println "Obtained values locally...";
+
+    cartridgeCount = data.cartridges.size
+    println "Number of cartridges: ${cartridgeCount}"
+
+    def projectWorkspace =  "${PROJECT_NAME}"
+    println "Project workspace: ${projectWorkspace}"
+
+    // For loop iterating over the data map obtained from the provided JSON file
+    for ( i = 0 ; i < cartridgeCount ; i++ ) {
+        String folder = data.cartridges[i].folder.name
+        println("Loading cartridge inside folder: " + folder)
+        String url = data.cartridges[i].cartridge.url
+        println("Cartridge URL: " + url)
+        String display_name = data.cartridges[i].folder.display_name
+        String desc = data.cartridges[i].folder.description
+        build job: projectWorkspace+'/Cartridge_Management/Load_Cartridge', parameters: [[$class: 'StringParameterValue', name: 'CARTRIDGE_FOLDER', value: folder], [$class: 'StringParameterValue', name: 'FOLDER_DISPLAY_NAME', value: display_name], [$class: 'StringParameterValue', name: 'FOLDER_DESCRIPTION', value: desc], [$class: 'StringParameterValue', name: 'CARTRIDGE_CLONE_URL', value: url]]
+    }
+
+}
+
+@NonCPS
+    def parseJSON(text) {
+    def slurper = new groovy.json.JsonSlurper();
+    Map data = slurper.parseText(text)
+    slurper = null
+    return data
+}
+            ''')
+            sandbox()
         }
     }
 }
