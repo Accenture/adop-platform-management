@@ -55,8 +55,16 @@ export GIT_SSH="${WORKSPACE}/custom_ssh"
 # Clone Cartridge
 git clone ${CARTRIDGE_CLONE_URL} cartridge
 
-repo_namespace="${PROJECT_NAME}"
-permissions_repo="${repo_namespace}/permissions"
+permissions_repo="${PROJECT_NAME}/permissions"
+
+# Check if folder was specified
+if [ -z ${CARTRIDGE_FOLDER} ] ; then
+    echo "Folder name not specified..."
+    repo_namespace="${PROJECT_NAME}"
+else
+    echo "Folder name specified, changing project namespace value.."
+    repo_namespace="${PROJECT_NAME}/${CARTRIDGE_FOLDER}"
+fi
 
 # Create repositories
 mkdir ${WORKSPACE}/tmp
