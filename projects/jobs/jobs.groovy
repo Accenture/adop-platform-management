@@ -33,6 +33,7 @@ loadCartridgeJob.with{
         stringParam('CARTRIDGE_FOLDER', '', 'The folder within the project namespace where your cartridge will be loaded into.')
         stringParam('FOLDER_DISPLAY_NAME', '', 'Display name of the folder where the cartridge is loaded.')
         stringParam('FOLDER_DESCRIPTION', '', 'Description of the folder where the cartridge is loaded.')
+        booleanParam('ENABLE_CODE_REVIEW', false, 'Enables Gerrit Code Reviewing for the selected cartridge')
     }
     environmentVariables {
         env('WORKSPACE_NAME',workspaceFolderName)
@@ -55,7 +56,12 @@ export GIT_SSH="${WORKSPACE}/custom_ssh"
 # Clone Cartridge
 git clone ${CARTRIDGE_CLONE_URL} cartridge
 
-permissions_repo="${PROJECT_NAME}/permissions"
+# Check if the user has enabled Gerrit Code reviewing
+if [ "$ENABLE_CODE_REVIEW" == true ]; then
+    permissions_repo="${PROJECT_NAME}/permissions-with-review"
+else
+    permissions_repo="${PROJECT_NAME}/permissions"
+fi
 
 # Check if folder was specified
 if [ -z ${CARTRIDGE_FOLDER} ] ; then

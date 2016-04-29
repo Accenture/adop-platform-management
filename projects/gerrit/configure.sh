@@ -1,5 +1,19 @@
 # Gerrit
-permissions_repo_name="${WORKSPACE_NAME}/${PROJECT_NAME}/permissions"
+# Check if permission repo name has been passed, if not, defaults to permissions
+unset permissions_name
+unset permissions_config_name
+while getopts ":r:" opt; do
+  case $opt in
+    r)  permissions_name="$OPTARG"
+        permissions_config_name="-$permissions_name"
+    ;;  
+  esac
+done
+if [ -z "$permissions_name" ]; then
+    permissions_name="permissions"
+fi
+
+permissions_repo_name="${WORKSPACE_NAME}/${PROJECT_NAME}/${permissions_name}"
 
 ## Create Project Repo
 mkdir ${WORKSPACE}/tmp
@@ -27,10 +41,10 @@ fi
 
 ## Setup Access Control
 git clone ssh://jenkins@gerrit:29418/"${permissions_repo_name}"
-cd permissions/
+cd ${permissions_name}/
 git fetch origin refs/meta/config:refs/remotes/origin/meta/config
 git checkout meta/config
-perl -p -i -e 's/\$\{([^}]+)\}/defined $ENV{$1} ? $ENV{$1} : $&/eg' < "${WORKSPACE}/projects/gerrit/project.config" 2> /dev/null 1> "./project.config"
+perl -p -i -e 's/\$\{([^}]+)\}/defined $ENV{$1} ? $ENV{$1} : $&/eg' < "${WORKSPACE}/projects/gerrit/project${permissions_config_name}.config" 2> /dev/null 1> "./project.config"
 perl -p -i -e 's/\$\{([^}]+)\}/defined $ENV{$1} ? $ENV{$1} : $&/eg' < "${WORKSPACE}/projects/gerrit/groups" 2> /dev/null 1> "./groups"
 if [ $(git status --porcelain | wc -l) -gt 0 ]; then
     git add project.config groups
@@ -39,3 +53,6 @@ if [ $(git status --porcelain | wc -l) -gt 0 ]; then
 else
     echo "Nothing to commit"
 fi
+
+# Remove the temp file directory
+rm -rf ${WORKSPACE}/tmp

@@ -69,7 +69,9 @@ do
 done''')
         shell('''#!/bin/bash -ex
 # Gerrit
-source ${WORKSPACE}/projects/gerrit/configure.sh''')
+source ${WORKSPACE}/projects/gerrit/configure.sh
+# Generate second permission repo with enabled code-review
+source ${WORKSPACE}/projects/gerrit/configure.sh -r permissions-with-review''')
         dsl {
             external("projects/jobs/**/*.groovy")
         }
