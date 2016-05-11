@@ -219,8 +219,6 @@ def cartridgeFolder = folder(cartridgeFolderName) {
 loadCartridgeCollectionJob.with{
     parameters{
         stringParam('COLLECTION_URL', '', 'URL to a JSON file defining your cartridge collection.')
-        stringParam('WORKSPACE_NAME', workspaceFolderName, 'Workspace namespace (DO NOT CHANGE FROM DEFAULT VALUE)')
-        stringParam('PROJECT_NAME', projectFolderName, 'Project namespace (DO NOT CHANGE FROM DEFAULT VALUE)')
     }
     properties {
         rebuild {
@@ -247,7 +245,7 @@ loadCartridgeCollectionJob.with{
     cartridgeCount = data.cartridges.size
     println "Number of cartridges: ${cartridgeCount}"
 
-    def projectWorkspace =  "${PROJECT_NAME}"
+    def projectWorkspace =  "''' + projectFolderName + '''"
     println "Project workspace: ${projectWorkspace}"
 
     // For loop iterating over the data map obtained from the provided JSON file
