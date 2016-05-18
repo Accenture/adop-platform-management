@@ -12,13 +12,18 @@ loadPlatformExtensionJob.with{
         sshAgent('adop-jenkins-master')
     }
     parameters{
-      stringParam("GIT_URL",'https://github.com/Accenture/sample-platform-extension.git',"The URL of the git repo for Platform Extension")
+      stringParam("GIT_URL",'',"The URL of the git repo for Platform Extension")
       stringParam("GIT_REF","master","The reference to checkout from git repo of Platform Extension. It could be a branch name or a tag name. Eg : master, 0.0.1 etc")
+      credentialsParam("AWS_CREDENTIALS"){
+        type('com.cloudbees.plugins.credentials.impl.UsernamePasswordCredentialsImpl')
+        description('AWS access key and secret key for your account')
+      }
     }
     scm{
       git{
         remote{
           url('${GIT_URL}')
+          credentials("adop-jenkins-master")
         }
         branch('${GIT_REF}')
       }
@@ -30,7 +35,7 @@ loadPlatformExtensionJob.with{
       maskPasswords()
       sshAgent("adop-jenkins-master")
       credentialsBinding {
-        usernamePassword("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", "aws-environment-provisioning")
+        usernamePassword("AWS_ACCESS_KEY_ID", "AWS_SECRET_ACCESS_KEY", '${AWS_CREDENTIALS}')
       }
     }
     steps {
