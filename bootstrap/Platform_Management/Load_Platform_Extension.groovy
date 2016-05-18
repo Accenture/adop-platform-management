@@ -23,6 +23,7 @@ loadPlatformExtensionJob.with{
       git{
         remote{
           url('${GIT_URL}')
+          credentials("adop-jenkins-master")
         }
         branch('${GIT_REF}')
       }
