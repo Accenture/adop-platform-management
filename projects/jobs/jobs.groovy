@@ -198,7 +198,7 @@ def cartridgeFolder = folder(cartridgeFolderName) {
             }
         }
         dsl {
-            external("cartridge/jenkins/jobs/dsl/**/*.groovy")
+            external("cartridge/jenkins/jobs/dsl/*.groovy")
         }
 
     }
