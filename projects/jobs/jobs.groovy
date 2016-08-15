@@ -34,6 +34,7 @@ loadCartridgeJob.with{
         stringParam('FOLDER_DISPLAY_NAME', '', 'Display name of the folder where the cartridge is loaded.')
         stringParam('FOLDER_DESCRIPTION', '', 'Description of the folder where the cartridge is loaded.')
         booleanParam('ENABLE_CODE_REVIEW', false, 'Enables Gerrit Code Reviewing for the selected cartridge')
+        booleanParam('OVERWRITE_REPOS', false, 'If ticked, existing code repositories (previously loaded by the cartridge) will be overwritten. For first time cartridge runs, this property is redundant and will perform the same behavior regardless.')
     }
     environmentVariables {
         env('WORKSPACE_NAME',workspaceFolderName)
@@ -104,7 +105,13 @@ while read repo_url; do
         cd "${repo_name}"
         git remote add source "${repo_url}"
         git fetch source
-        git push origin +refs/remotes/source/*:refs/heads/*
+        if [ "$OVERWRITE_REPOS" == true ]; then
+            git push origin +refs/remotes/source/*:refs/heads/*
+        else
+            set +e
+            git push origin refs/remotes/source/*:refs/heads/*
+            set -e
+        fi
         cd -
     fi
 done < ${WORKSPACE}/cartridge/src/urls.txt
