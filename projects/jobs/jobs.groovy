@@ -34,6 +34,7 @@ loadCartridgeJob.with{
         stringParam('FOLDER_DISPLAY_NAME', '', 'Display name of the folder where the cartridge is loaded.')
         stringParam('FOLDER_DESCRIPTION', '', 'Description of the folder where the cartridge is loaded.')
         booleanParam('ENABLE_CODE_REVIEW', false, 'Enables Gerrit Code Reviewing for the selected cartridge')
+        booleanParam('OVERWRITE_REPOS', false, 'If ticked, existing code repositories (previously loaded by the cartridge) will be overwritten. For first time cartridge runs, this property is redundant and will perform the same behavior regardless.')
     }
     environmentVariables {
         env('WORKSPACE_NAME',workspaceFolderName)
@@ -55,6 +56,9 @@ export GIT_SSH="${WORKSPACE}/custom_ssh"
 
 # Clone Cartridge
 git clone ${CARTRIDGE_CLONE_URL} cartridge
+
+# Find the cartridge
+export CART_HOME=$(dirname $(find -name metadata.cartridge | head -1))
 
 # Check if the user has enabled Gerrit Code reviewing
 if [ "$ENABLE_CODE_REVIEW" == true ]; then
@@ -104,28 +108,34 @@ while read repo_url; do
         cd "${repo_name}"
         git remote add source "${repo_url}"
         git fetch source
-        git push origin +refs/remotes/source/*:refs/heads/*
+        if [ "$OVERWRITE_REPOS" == true ]; then
+            git push origin +refs/remotes/source/*:refs/heads/*
+        else
+            set +e
+            git push origin refs/remotes/source/*:refs/heads/*
+            set -e
+        fi
         cd -
     fi
-done < ${WORKSPACE}/cartridge/src/urls.txt
+done < ${WORKSPACE}/${CART_HOME}/src/urls.txt
 
 # Provision one-time infrastructure
-if [ -d ${WORKSPACE}/cartridge/infra ]; then
-    cd ${WORKSPACE}/cartridge/infra
+if [ -d ${WORKSPACE}/${CART_HOME}/infra ]; then
+    cd ${WORKSPACE}/${CART_HOME}/infra
     if [ -f provision.sh ]; then
         source provision.sh
     else
-        echo "INFO: cartridge/infra/provision.sh not found"
+        echo "INFO: ${CART_HOME}/infra/provision.sh not found"
     fi
 fi
 
 # Generate Jenkins Jobs
-if [ -d ${WORKSPACE}/cartridge/jenkins/jobs ]; then
-    cd ${WORKSPACE}/cartridge/jenkins/jobs
+if [ -d ${WORKSPACE}/${CART_HOME}/jenkins/jobs ]; then
+    cd ${WORKSPACE}/${CART_HOME}/jenkins/jobs
     if [ -f generate.sh ]; then
         source generate.sh
     else
-        echo "INFO: cartridge/jenkins/jobs/generate.sh not found"
+        echo "INFO: ${CART_HOME}/jenkins/jobs/generate.sh not found"
     fi
 fi
 ''')
@@ -135,7 +145,9 @@ import groovy.io.FileType
 
 def jenkinsInstace = Jenkins.instance
 def projectName = build.getEnvironment(listener).get('PROJECT_NAME')
-def xmlDir = new File(build.getWorkspace().toString() + "/cartridge/jenkins/jobs/xml")
+def mcfile = new FileNameFinder().getFileNames(build.getWorkspace().toString(), '**/metadata.cartridge')
+def xmlDir = new File(mcfile[0].substring(0, mcfile[0].lastIndexOf(File.separator))  + "/jenkins/jobs/xml")
+
 def fileList = []
 
 xmlDir.eachFileRecurse (FileType.FILES) { file ->
@@ -198,7 +210,7 @@ def cartridgeFolder = folder(cartridgeFolderName) {
             }
         }
         dsl {
-            external("cartridge/jenkins/jobs/dsl/*.groovy")
+            external("cartridge/**/jenkins/jobs/dsl/*.groovy")
         }
 
     }
