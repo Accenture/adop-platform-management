@@ -102,7 +102,7 @@ while read repo_url; do
         else
             echo "Repository already exists, skipping create: ${target_repo_name}"
         fi
-        
+
         # Populate repository
         git clone ssh://jenkins@gerrit:29418/"${target_repo_name}"
         cd "${repo_name}"
@@ -203,7 +203,7 @@ println("Creating folder: " + cartridgeFolderName + "...")
 
 def cartridgeFolder = folder(cartridgeFolderName) {
   displayName(FolderDisplayName)
-  description(FolderDescription)  
+  description(FolderDescription)
 }
                     ''')
                 }
@@ -249,26 +249,25 @@ loadCartridgeCollectionJob.with{
     sh("wget ${COLLECTION_URL} -O collection.json")
 
     println "Reading in values from file..."
-    Map data = parseJSON(readFile('collection.json'))
+    cartridges = parseJSON(readFile('collection.json'))
 
-    println(data);
+    println(cartridges);
     println "Obtained values locally...";
 
-    cartridgeCount = data.cartridges.size
+    cartridgeCount = cartridges.size
     println "Number of cartridges: ${cartridgeCount}"
 
     def projectWorkspace =  "''' + projectFolderName + '''"
     println "Project workspace: ${projectWorkspace}"
 
     // For loop iterating over the data map obtained from the provided JSON file
-    for ( i = 0 ; i < cartridgeCount ; i++ ) {
-        String folder = data.cartridges[i].folder.name
-        println("Loading cartridge inside folder: " + folder)
-        String url = data.cartridges[i].cartridge.url
-        println("Cartridge URL: " + url)
-        String display_name = data.cartridges[i].folder.display_name
-        String desc = data.cartridges[i].folder.description
-        build job: projectWorkspace+'/Cartridge_Management/Load_Cartridge', parameters: [[$class: 'StringParameterValue', name: 'CARTRIDGE_FOLDER', value: folder], [$class: 'StringParameterValue', name: 'FOLDER_DISPLAY_NAME', value: display_name], [$class: 'StringParameterValue', name: 'FOLDER_DESCRIPTION', value: desc], [$class: 'StringParameterValue', name: 'CARTRIDGE_CLONE_URL', value: url]]
+    for (int i = 0; i < cartridgeCount; i++) {
+        def cartridge = cartridges.get(i);
+
+        println("Loading cartridge inside folder: " + cartridge.folder)
+        println("Cartridge URL: " + cartridge.url)
+
+        build job: projectWorkspace+'/Cartridge_Management/Load_Cartridge', parameters: [[$class: 'StringParameterValue', name: 'CARTRIDGE_FOLDER', value: cartridge.folder], [$class: 'StringParameterValue', name: 'FOLDER_DISPLAY_NAME', value: cartridge.display_name], [$class: 'StringParameterValue', name: 'FOLDER_DESCRIPTION', value: cartridge.desc], [$class: 'StringParameterValue', name: 'CARTRIDGE_CLONE_URL', value: cartridge.url]]
     }
 
 }
@@ -278,7 +277,25 @@ loadCartridgeCollectionJob.with{
     def slurper = new groovy.json.JsonSlurper();
     Map data = slurper.parseText(text)
     slurper = null
-    return data
+
+    def cartridges = []
+    for ( i = 0 ; i < data.cartridges.size; i++ ) {
+        String url = data.cartridges[i].cartridge.url
+        String desc = data.cartridges[i].folder.description
+        String folder = data.cartridges[i].folder.name
+        String display_name = data.cartridges[i].folder.display_name
+
+        cartridges[i] = [
+            'url' : url,
+            'desc' : desc,
+            'folder' : folder,
+            'display_name' : display_name
+        ]
+    }
+
+    data = null
+
+    return cartridges
 }
             ''')
             sandbox()
