@@ -28,20 +28,19 @@ loadPlatformExtensionCollectionJob.with{
     sh("wget ${COLLECTION_URL} -O collection.json")
 
     println "Reading in values from file..."
-    Map data = parseJSON(readFile('collection.json'))
+    extensions = parseJSON(readFile('collection.json'))
 
-    println(data);
+    println(extensions);
     println "Obtained values locally...";
 
-    extensionCount = data.extensions.size
+    extensionCount = extensions.size
     println "Number of platform extensions: ${extensionCount}"
 
     // For loop iterating over the data map obtained from the provided JSON file
-    for ( i = 0 ; i < extensionCount ; i++ ) {
-        String url = data.extensions[i].url
-        println("Platform Extension URL: " + url)
-        String desc = data.extensions[i].description
-        build job: '/Platform_Management/Load_Platform_Extension', parameters: [[$class: 'StringParameterValue', name: 'GIT_URL', value: url], [$class: 'StringParameterValue', name: 'GIT_REF', value: 'master'], [$class: 'CredentialsParameterValue', name: 'AWS_CREDENTIALS', value: "${AWS_CREDENTIALS}"]]
+    for (int i = 0; i < extensionCount; i++) {
+        def extension = extensions.get(i);
+        println("Platform Extension URL: " + extension.url)
+        build job: '/Platform_Management/Load_Platform_Extension', parameters: [[$class: 'StringParameterValue', name: 'GIT_URL', value: extension.url], [$class: 'StringParameterValue', name: 'GIT_REF', value: 'master'], [$class: 'CredentialsParameterValue', name: 'AWS_CREDENTIALS', value: "${AWS_CREDENTIALS}"]]
     }
 
 }
@@ -51,7 +50,16 @@ loadPlatformExtensionCollectionJob.with{
     def slurper = new groovy.json.JsonSlurper();
     Map data = slurper.parseText(text)
     slurper = null
-    return data
+
+    def extensions = []
+    for ( i = 0 ; i < data.extensions.size; i++ ) {
+        String url = data.extensions[i].url
+        extensions[i] = ['url' : url]
+    }
+
+    data = null
+
+    return extensions
 }
             ''')
             sandbox()
