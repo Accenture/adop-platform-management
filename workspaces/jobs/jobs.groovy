@@ -15,6 +15,7 @@ def generateProjectJob = freeStyleJob(projectManagementFolderName + "/Generate_P
 generateProjectJob.with{
     parameters{
         stringParam("PROJECT_NAME","","The name of the project to be generated.")
+        booleanParam('CUSTOM_SCM_NAMESPACE', false, 'Enables the option to provide a custom project namespace for your SCM provider')
         stringParam("ADMIN_USERS","","The list of users' email addresses that should be setup initially as admin. They will have full access to all jobs within the project.")
         stringParam("DEVELOPER_USERS","","The list of users' email addresses that should be setup initially as developers. They will have full access to all non-admin jobs within the project.")
         stringParam("VIEWER_USERS","","The list of users' email addresses that should be setup initially as viewers. They will have read-only access to all non-admin jobs within the project.")
