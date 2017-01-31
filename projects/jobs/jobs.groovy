@@ -12,24 +12,67 @@ def projectFolder = folder(projectFolderName)
 def cartridgeManagementFolderName= projectFolderName + "/Cartridge_Management"
 def cartridgeManagementFolder = folder(cartridgeManagementFolderName) { displayName('Cartridge Management') }
 
-// Cartridge List
-def cartridge_list = []
-readFileFromWorkspace("${WORKSPACE}/cartridges.txt").eachLine { line ->
-    cartridge_repo_name = line.tokenize("/").last()
-    local_cartridge_url = cartridgeBaseUrl + "/" + cartridge_repo_name
-    cartridge_list << local_cartridge_url
-}
-
-
 // Jobs
 def loadCartridgeJob = freeStyleJob(cartridgeManagementFolderName + "/Load_Cartridge")
 def loadCartridgeCollectionJob = workflowJob(cartridgeManagementFolderName + "/Load_Cartridge_Collection")
-
-
 // Setup Load_Cartridge
 loadCartridgeJob.with{
     parameters{
-        choiceParam('CARTRIDGE_CLONE_URL', cartridge_list, 'Cartridge URL to load')
+        extensibleChoiceParameterDefinition {
+          name('CARTRIDGE_CLONE_URL')
+          choiceListProvider {
+            systemGroovyChoiceListProvider {
+              scriptText('''
+              import jenkins.model.*
+
+              nodes = Jenkins.instance.globalNodeProperties
+              nodes.getAll(hudson.slaves.EnvironmentVariablesNodeProperty.class)
+              envVars = nodes[0].envVars
+
+              def URLS = envVars['CARTRIDGE_SOURCES'];
+
+              if (URLS == null) {
+                println "[ERROR] CARTRIDGE_SOURCES Jenkins environment variable has not been set";
+                return ['Type the cartridge URL (or add CARTRIDGE_SOURCES as a Jenkins environment variable if you wish to see a list here)'];
+              }
+              if (URLS.length() < 11) {
+                println "[ERROR] CARTRIDGE_SOURCES Jenkins environment variable does not seem to contain valid URLs";
+                return ['Type the cartridge URL (the CARTRIDGE_SOURCES Jenkins environment variable does not seem valid)'];
+              }
+
+              def cartridge_urls = [];
+
+              URLS.split(';').each{ source_url ->
+
+                try {
+                  def html = source_url.toURL().text;
+
+                  html.eachLine { line ->
+                    if (line.contains("url:")) {
+                      def url = line.substring(line.indexOf("\\"") + 1, line.lastIndexOf("\\""))
+                      cartridge_urls.add(url)
+                    }
+                  }
+                }
+                catch (UnknownHostException e) {
+                  cartridge_urls.add("[ERROR] Provided URL was not found: ${source_url}");
+                  println "[ERROR] Provided URL was not found: ${source_url}";
+                }
+                catch (Exception e) {
+                  cartridge_urls.add("[ERROR] Unknown error while processing: ${source_url}");
+                  println "[ERROR] Unknown error while processing: ${source_url}";
+                }
+              }
+
+              return cartridge_urls;
+''')
+              defaultChoice('Top')
+              usePredefinedVariables(false)
+            }
+          }
+          editable(true)
+          description('Cartridge URL to load')
+          }
         stringParam('CARTRIDGE_FOLDER', '', 'The folder within the project namespace where your cartridge will be loaded into.')
         stringParam('FOLDER_DISPLAY_NAME', '', 'Display name of the folder where the cartridge is loaded.')
         stringParam('FOLDER_DESCRIPTION', '', 'Description of the folder where the cartridge is loaded.')
