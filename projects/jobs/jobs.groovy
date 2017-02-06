@@ -100,6 +100,7 @@ loadCartridgeJob.with{
         booleanParam('OVERWRITE_REPOS', false, 'If ticked, existing code repositories (previously loaded by the cartridge) will be overwritten. For first time cartridge runs, this property is redundant and will perform the same behavior regardless.')
     }
     environmentVariables {
+        groovy("return [SCM_KEY: org.apache.commons.lang.RandomStringUtils.randomAlphanumeric(20)]")
         env('WORKSPACE_NAME',workspaceFolderName)
         env('PROJECT_NAME',projectFolderName)
     }
@@ -107,12 +108,64 @@ loadCartridgeJob.with{
         preBuildCleanup()
         injectPasswords()
         maskPasswords()
-        sshAgent("adop-jenkins-master")
         credentialsBinding {
             file('SCM_SSH_KEY', 'adop-jenkins-private')
         }
     }
     steps {
+        shell('''#!/bin/bash -ex
+
+# Create temp directory for repositories
+mkdir ${WORKSPACE}/tmp
+
+# Copy pluggable SCM package into workspace
+mkdir ${WORKSPACE}/job_dsl_additional_classpath
+cp -r ${PLUGGABLE_SCM_PROVIDER_PATH}pluggable $WORKSPACE/job_dsl_additional_classpath
+
+# Output SCM provider ID to a properties file
+echo SCM_PROVIDER_ID=$(echo ${SCM_PROVIDER} | cut -d "(" -f2 | cut -d ")" -f1) > scm_provider_id.properties
+''')
+        environmentVariables {
+          propertiesFile('scm_provider_id.properties')
+        }
+        systemGroovyCommand('''import pluggable.scm.PropertiesSCMProviderDataStore
+import pluggable.scm.SCMProviderDataStore
+import pluggable.configuration.EnvVarProperty;
+import pluggable.scm.helpers.HelperUtils
+import java.util.Properties
+import hudson.FilePath
+
+
+String scmProviderId = build.getEnvironment(listener).get('SCM_PROVIDER_ID')
+EnvVarProperty envVarProperty = EnvVarProperty.getInstance();
+
+
+envVarProperty.setVariableBindings(build.getEnvironment(listener));
+SCMProviderDataStore scmProviderDataStore = new PropertiesSCMProviderDataStore();
+Properties scmProviderProperties = scmProviderDataStore.get(scmProviderId);
+
+// get credentials
+
+String credentialId = scmProviderProperties.get("loader.credentialId")
+
+if(credentialId != null){
+
+  def username_matcher = CredentialsMatchers.withId(credentialId);
+
+  def available_credentials = CredentialsProvider.lookupCredentials(
+    StandardUsernameCredentials.class
+  );
+
+  credentialInfo =  [CredentialsMatchers.firstOrNull(available_credentials, username_matcher).username,
+                  CredentialsMatchers.firstOrNull(available_credentials, username_matcher).password];
+
+  channel = build.workspace.channel;
+  fp = new FilePath(channel, build.workspace.toString() + "/" + build.getEnvVars()["SCM_KEY"])
+  fp.write("SCM_USERNAME="+credentialInfo[0]+"\\nSCM_PASSWORD="+credentialInfo[1], null);
+}
+'''){
+classpath('$WORKSPACE/job_dsl_additional_classpath/')
+}
         shell('''#!/bin/bash -ex
 
 # We trust everywhere
@@ -123,7 +176,16 @@ chmod +x ${WORKSPACE}/custom_ssh
 export GIT_SSH="${WORKSPACE}/custom_ssh"
 
 # Clone Cartridge
-git clone ${CARTRIDGE_CLONE_URL} cartridge
+echo "INFO: cloning ${CARTRIDGE_CLONE_URL}"
+# we do not want to show the password
+set +x
+if ( [ ${CARTRIDGE_CLONE_URL%://*} == "https" ] ||  [ ${CARTRIDGE_CLONE_URL%://*} == "http" ] ) && [ -f ${WORKSPACE}/${SCM_KEY} ]; then
+	source ${WORKSPACE}/${SCM_KEY}
+	git clone ${CARTRIDGE_CLONE_URL%://*}://${SCM_USERNAME}:${SCM_PASSWORD}@${CARTRIDGE_CLONE_URL#*://} cartridge
+else
+    git clone ${CARTRIDGE_CLONE_URL} cartridge
+fi
+set -x
 
 # Find the cartridge
 export CART_HOME=$(dirname $(find -name metadata.cartridge | head -1))
@@ -145,17 +207,8 @@ else
     repo_namespace="${PROJECT_NAME}/${CARTRIDGE_FOLDER}"
 fi
 
-# Create temp directory for repositories
-mkdir ${WORKSPACE}/tmp
-
-# Copy pluggable SCM package into workspace
-mkdir ${WORKSPACE}/job_dsl_additional_classpath
-cp -r ${PLUGGABLE_SCM_PROVIDER_PATH}pluggable $WORKSPACE/job_dsl_additional_classpath
-
 # Output SCM provider ID to a properties file
-echo SCM_PROVIDER_ID=$(echo ${SCM_PROVIDER} | cut -d "(" -f2 | cut -d ")" -f1) > scm_provider_id.properties
 echo GIT_SSH="${GIT_SSH}" >> scm_provider.properties
-
 
 # Provision one-time infrastructure
 if [ -d ${WORKSPACE}/${CART_HOME}/infra ]; then
@@ -184,9 +237,6 @@ fi
             propertiesFile('scm_provider_id.properties')
         }
         systemGroovyCommand('''
-import jenkins.model.*
-import groovy.io.FileType
-
 import jenkins.model.*;
 import groovy.io.FileType;
 import hudson.FilePath;
@@ -304,7 +354,7 @@ def cartridgeFolder = folder(cartridgeFolderName) {
             external("cartridge/**/jenkins/jobs/dsl/*.groovy")
             additionalClasspath("job_dsl_additional_classpath")
         }
-
+        shell('rm -f $WORKSPACE/$SCM_KEY')
     }
     scm {
         git {
