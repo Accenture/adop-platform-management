@@ -22,6 +22,9 @@ build job: 'Platform_Management/Load_Cartridge_List'
 
 // Setup the Gerrit ACL
 build job: 'Platform_Management/Setup_Gerrit'
+
+// Setup the Pluggable Library
+build job: 'Platform_Management/Setup_Pluggable_Library'
 ''')
 sandbox()
         }

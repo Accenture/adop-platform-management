@@ -10,8 +10,8 @@ def setupPluggable = freeStyleJob(platformManagementFolderName + "/Setup_Pluggab
 // Setup setup_cartridge
 setupPluggable.with{
     environmentVariables {
-        keepBuildVariables()
-        keepSystemVariables()
+        keepBuildVariables(true)
+        keepSystemVariables(true)
     }
     wrappers {
         preBuildCleanup()
