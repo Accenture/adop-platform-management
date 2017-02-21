@@ -60,6 +60,8 @@ git clone ${CARTRIDGE_CLONE_URL} cartridge
 # Find the cartridge
 export CART_HOME=$(dirname $(find -name metadata.cartridge | head -1))
 
+echo "CART_HOME=${CART_HOME}" > ${WORKSPACE}/carthome.properties
+
 # Check if the user has enabled Gerrit Code reviewing
 if [ "$ENABLE_CODE_REVIEW" == true ]; then
     permissions_repo="${PROJECT_NAME}/permissions-with-review"
@@ -139,30 +141,42 @@ if [ -d ${WORKSPACE}/${CART_HOME}/jenkins/jobs ]; then
     fi
 fi
 ''')
-        systemGroovyCommand('''
-import jenkins.model.*
-import groovy.io.FileType
+        environmentVariables {
+          propertiesFile('${WORKSPACE}/carthome.properties')
+        }
+        systemGroovyCommand('''// XML LOAD
 
-def jenkinsInstace = Jenkins.instance
-def projectName = build.getEnvironment(listener).get('PROJECT_NAME')
-def mcfile = new FileNameFinder().getFileNames(build.getWorkspace().toString(), '**/metadata.cartridge')
-def xmlDir = new File(mcfile[0].substring(0, mcfile[0].lastIndexOf(File.separator))  + "/jenkins/jobs/xml")
+import jenkins.model.*;
+import groovy.io.FileType;
+import hudson.FilePath;
 
-def fileList = []
+def jenkinsInstace = Jenkins.instance;
+def projectName = build.getEnvironment(listener).get('PROJECT_NAME');
+def cartHome = build.getEnvironment(listener).get('CART_HOME');
+def workspace = build.workspace.toString();
+def cartridgeWorkspace = workspace + '/' + cartHome + '/jenkins/jobs/xml/';
+def channel = build.workspace.channel;
+FilePath filePath = new FilePath(channel, cartridgeWorkspace);
+List<FilePath> xmlFiles = filePath.list('**/*.xml');
 
-xmlDir.eachFileRecurse (FileType.FILES) { file ->
-    if(file.name.endsWith('.xml')) {
-        fileList << file
-    }
-}
-fileList.each {
-	String configPath = it.path
-  	File configFile = new File(configPath)
-    String configXml = configFile.text
-    ByteArrayInputStream xmlStream = new ByteArrayInputStream( configXml.getBytes() )
-    String jobName = configFile.getName().substring(0, configFile.getName().lastIndexOf('.'))
+xmlFiles.each {
+  File configFile = new File(it.toURI());
 
-    jenkinsInstace.getItem(projectName,jenkinsInstace).createProjectFromXML(jobName, xmlStream)
+  String configXml = it.readToString();
+
+  ByteArrayInputStream xmlStream = new ByteArrayInputStream(
+    configXml.getBytes());
+
+  String jobName = configFile.getName()
+  		.substring(0,
+                   configFile
+                   .getName()
+                   	.lastIndexOf('.'));
+
+  jenkinsInstace.getItem(projectName,jenkinsInstace)
+  	.createProjectFromXML(jobName, xmlStream);
+
+  println '[INFO] - Imported XML job config: ' + it.toURI();
 }
 ''')
         conditionalSteps {
