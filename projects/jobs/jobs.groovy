@@ -92,7 +92,6 @@ loadCartridgeJob.with{
         if (customScmNamespace == "true"){
           stringParam('SCM_NAMESPACE', '', 'The namespace for your SCM provider which will prefix your created repositories')
         }
-        choiceParam('CARTRIDGE_CLONE_URL', cartridge_list, 'Cartridge URL to load')
         stringParam('CARTRIDGE_FOLDER', '', 'The folder within the project namespace where your cartridge will be loaded into.')
         stringParam('FOLDER_DISPLAY_NAME', '', 'Display name of the folder where the cartridge is loaded.')
         stringParam('FOLDER_DESCRIPTION', '', 'Description of the folder where the cartridge is loaded.')
@@ -125,9 +124,6 @@ cp -r ${PLUGGABLE_SCM_PROVIDER_PATH}pluggable $WORKSPACE/job_dsl_additional_clas
 # Output SCM provider ID to a properties file
 echo SCM_PROVIDER_ID=$(echo ${SCM_PROVIDER} | cut -d "(" -f2 | cut -d ")" -f1) > scm_provider_id.properties
 ''')
-        environmentVariables {
-          propertiesFile('scm_provider_id.properties')
-        }
         systemGroovyCommand('''import pluggable.scm.PropertiesSCMProviderDataStore
 import pluggable.scm.SCMProviderDataStore
 import pluggable.configuration.EnvVarProperty;
@@ -270,27 +266,41 @@ xmlFiles.each {
   println '[INFO] - Imported XML job config: ' + it.toURI();
 }
 ''')
-        dsl {
-            text('''import pluggable.scm.*;
+   groovy {
+    scriptSource {
+        stringScriptSource {
+            command('''import pluggable.scm.SCMProvider;
+import pluggable.scm.SCMProviderHandler;
+import pluggable.configuration.EnvVarProperty;
 
-// Instantiate your SCM provider where your repos will be created
-SCMProvider scmProvider = SCMProviderHandler.getScmProvider("${SCM_PROVIDER_ID}", binding.variables)
+EnvVarProperty envVarProperty = EnvVarProperty.getInstance();
+envVarProperty.setVariableBindings(System.getenv());
 
-def workspace = "${WORKSPACE}"
-def projectFolderName = "${PROJECT_NAME}"
-def cartridgeFolder = "${CARTRIDGE_FOLDER}"
-def overwriteRepos = "${OVERWRITE_REPOS}"
-def scmNamespace = ''' + namespaceValue + '''
-def codeReviewEnabled = "${ENABLE_CODE_REVIEW}"
+String scmProviderId = envVarProperty.getProperty('SCM_PROVIDER_ID')
+
+println envVarProperty.getPropertiesPath();
+
+SCMProvider scmProvider = SCMProviderHandler.getScmProvider(scmProviderId, System.getenv())
+
+def workspace = envVarProperty.getProperty('WORKSPACE')
+def projectFolderName = envVarProperty.getProperty('PROJECT_NAME')
+def cartridgeFolder = envVarProperty.getProperty('CARTRIDGE_FOLDER')
+def overwriteRepos = envVarProperty.getProperty('OVERWRITE_REPOS')
+
+if (envVarProperty.hasProperty('SCM_NAMESPACE')){
+  def scmNamespace = envVarProperty.getProperty('SCM_NAMESPACE')
+}else{
+  scmNamespace = ""
+}
+
+def codeReviewEnabled = envVarProperty.getProperty('ENABLE_CODE_REVIEW')
 
 String repoNamespace = null;
 
-// Check if a custom SCM namespace has been provided
 if (scmNamespace != null && !scmNamespace.isEmpty()){
   println("Custom SCM namespace specified...")
   repoNamespace = scmNamespace
 } else {
-  // Check if a folder is specified
   println("Custom SCM namespace not specified, using default project namespace...")
   if (cartridgeFolder == ""){
     println("Folder name not specified...")
@@ -302,9 +312,15 @@ if (scmNamespace != null && !scmNamespace.isEmpty()){
 }
 
 // Create your SCM repositories
-scmProvider.createScmRepos(workspace, repoNamespace, codeReviewEnabled, overwriteRepos)
-            ''')
-            additionalClasspath("job_dsl_additional_classpath/")
+scmProvider.createScmRepos(workspace, repoNamespace, codeReviewEnabled, overwriteRepos)''')
+                }
+            }
+            parameters("")
+            scriptParameters("")
+            properties("")
+            javaOpts("")
+            groovyName("ADOP Groovy")
+            classPath('''${WORKSPACE}/job_dsl_additional_classpath''')
         }
         conditionalSteps {
             condition {
