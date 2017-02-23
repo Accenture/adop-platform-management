@@ -33,48 +33,48 @@ loadCartridgeJob.with{
           choiceListProvider {
             systemGroovyChoiceListProvider {
               scriptText('''
-              import jenkins.model.*
+import jenkins.model.*
 
-              nodes = Jenkins.instance.globalNodeProperties
-              nodes.getAll(hudson.slaves.EnvironmentVariablesNodeProperty.class)
-              envVars = nodes[0].envVars
+nodes = Jenkins.instance.globalNodeProperties
+nodes.getAll(hudson.slaves.EnvironmentVariablesNodeProperty.class)
+envVars = nodes[0].envVars
 
-              def URLS = envVars['CARTRIDGE_SOURCES'];
+def URLS = envVars['CARTRIDGE_SOURCES'];
 
-              if (URLS == null) {
-                println "[ERROR] CARTRIDGE_SOURCES Jenkins environment variable has not been set";
-                return ['Type the cartridge URL (or add CARTRIDGE_SOURCES as a Jenkins environment variable if you wish to see a list here)'];
-              }
-              if (URLS.length() < 11) {
-                println "[ERROR] CARTRIDGE_SOURCES Jenkins environment variable does not seem to contain valid URLs";
-                return ['Type the cartridge URL (the CARTRIDGE_SOURCES Jenkins environment variable does not seem valid)'];
-              }
+if (URLS == null) {
+  println "[ERROR] CARTRIDGE_SOURCES Jenkins environment variable has not been set";
+  return ['Type the cartridge URL (or add CARTRIDGE_SOURCES as a Jenkins environment variable if you wish to see a list here)'];
+}
+if (URLS.length() < 11) {
+  println "[ERROR] CARTRIDGE_SOURCES Jenkins environment variable does not seem to contain valid URLs";
+  return ['Type the cartridge URL (the CARTRIDGE_SOURCES Jenkins environment variable does not seem valid)'];
+}
 
-              def cartridge_urls = [];
+def cartridge_urls = [];
 
-              URLS.split(';').each{ source_url ->
+URLS.split(';').each{ source_url ->
 
-                try {
-                  def html = source_url.toURL().text;
+  try {
+    def html = source_url.toURL().text;
 
-                  html.eachLine { line ->
-                    if (line.contains("url:")) {
-                      def url = line.substring(line.indexOf("\\"") + 1, line.lastIndexOf("\\""))
-                      cartridge_urls.add(url)
-                    }
-                  }
-                }
-                catch (UnknownHostException e) {
-                  cartridge_urls.add("[ERROR] Provided URL was not found: ${source_url}");
-                  println "[ERROR] Provided URL was not found: ${source_url}";
-                }
-                catch (Exception e) {
-                  cartridge_urls.add("[ERROR] Unknown error while processing: ${source_url}");
-                  println "[ERROR] Unknown error while processing: ${source_url}";
-                }
-              }
+    html.eachLine { line ->
+      if (line.contains("url:")) {
+        def url = line.substring(line.indexOf("\\"") + 1, line.lastIndexOf("\\""))
+        cartridge_urls.add(url)
+      }
+    }
+  }
+  catch (UnknownHostException e) {
+    cartridge_urls.add("[ERROR] Provided URL was not found: ${source_url}");
+    println "[ERROR] Provided URL was not found: ${source_url}";
+  }
+  catch (Exception e) {
+    cartridge_urls.add("[ERROR] Unknown error while processing: ${source_url}");
+    println "[ERROR] Unknown error while processing: ${source_url}";
+  }
+}
 
-              return cartridge_urls;
+return cartridge_urls;
 ''')
               defaultChoice('Top')
               usePredefinedVariables(false)
@@ -124,23 +124,22 @@ cp -r ${PLUGGABLE_SCM_PROVIDER_PATH}pluggable $WORKSPACE/job_dsl_additional_clas
 # Output SCM provider ID to a properties file
 echo SCM_PROVIDER_ID=$(echo ${SCM_PROVIDER} | cut -d "(" -f2 | cut -d ")" -f1) > scm_provider_id.properties
 ''')
-        systemGroovyCommand('''import pluggable.scm.PropertiesSCMProviderDataStore
+        systemGroovyCommand('''
+import com.cloudbees.plugins.credentials.*;
+import com.cloudbees.plugins.credentials.common.*;
+import pluggable.scm.PropertiesSCMProviderDataStore
 import pluggable.scm.SCMProviderDataStore
 import pluggable.configuration.EnvVarProperty;
 import pluggable.scm.helpers.HelperUtils
 import java.util.Properties
 import hudson.FilePath
 
-
 String scmProviderId = build.getEnvironment(listener).get('SCM_PROVIDER_ID')
 EnvVarProperty envVarProperty = EnvVarProperty.getInstance();
-
 
 envVarProperty.setVariableBindings(build.getEnvironment(listener));
 SCMProviderDataStore scmProviderDataStore = new PropertiesSCMProviderDataStore();
 Properties scmProviderProperties = scmProviderDataStore.get(scmProviderId);
-
-// get credentials
 
 String credentialId = scmProviderProperties.get("loader.credentialId")
 
@@ -156,7 +155,7 @@ if(credentialId != null){
                   CredentialsMatchers.firstOrNull(available_credentials, username_matcher).password];
 
   channel = build.workspace.channel;
-  fp = new FilePath(channel, build.workspace.toString() + "/" + build.getEnvVars()["SCM_KEY"])
+  fp = new FilePath(channel, build.workspace.toString() + "@tmp/secretFiles/" + build.getEnvVars()["SCM_KEY"])
   fp.write("SCM_USERNAME="+credentialInfo[0]+"\\nSCM_PASSWORD="+credentialInfo[1], null);
 }
 '''){
@@ -266,7 +265,11 @@ xmlFiles.each {
   println '[INFO] - Imported XML job config: ' + it.toURI();
 }
 ''')
-   groovy {
+  environmentVariables {
+      env('PLUGGABLE_SCM_PROVIDER_PATH','${WORKSPACE}/job_dsl_additional_classpath/')
+      env('PLUGGABLE_SCM_PROVIDER_PROPERTIES_PATH','${WORKSPACE}/datastore/pluggable/scm')
+  }
+  groovy {
     scriptSource {
         stringScriptSource {
             command('''import pluggable.scm.SCMProvider;
@@ -277,8 +280,6 @@ EnvVarProperty envVarProperty = EnvVarProperty.getInstance();
 envVarProperty.setVariableBindings(System.getenv());
 
 String scmProviderId = envVarProperty.getProperty('SCM_PROVIDER_ID')
-
-println envVarProperty.getPropertiesPath();
 
 SCMProvider scmProvider = SCMProviderHandler.getScmProvider(scmProviderId, System.getenv())
 
@@ -311,7 +312,6 @@ if (scmNamespace != null && !scmNamespace.isEmpty()){
   }
 }
 
-// Create your SCM repositories
 scmProvider.createScmRepos(workspace, repoNamespace, codeReviewEnabled, overwriteRepos)''')
                 }
             }
@@ -351,10 +351,12 @@ fi
 
 def cartridgeFolderName = "${PROJECT_NAME}"
 def FolderDisplayName = "${FOLDER_DISPLAY_NAME}"
+
 if (FolderDisplayName=="") {
     println "Folder display name not specified, using folder name..."
     FolderDisplayName = "${CARTRIDGE_FOLDER}"
 }
+
 def FolderDescription = "${FOLDER_DESCRIPTION}"
 println("Creating folder: " + cartridgeFolderName + "...")
 
@@ -370,7 +372,6 @@ def cartridgeFolder = folder(cartridgeFolderName) {
             external("cartridge/**/jenkins/jobs/dsl/*.groovy")
             additionalClasspath("job_dsl_additional_classpath")
         }
-        shell('rm -f $WORKSPACE/$SCM_KEY')
     }
     scm {
         git {
