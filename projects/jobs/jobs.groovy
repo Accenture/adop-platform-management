@@ -109,21 +109,28 @@ return cartridge_urls;
         maskPasswords()
         credentialsBinding {
             file('SCM_SSH_KEY', 'adop-jenkins-private')
+        }        
+        copyToSlaveBuildWrapper {
+          includes("**/**")
+          excludes("")
+          flatten(false)
+          includeAntExcludes(false)
+          relativeTo('''${JENKINS_HOME}/userContent''')
+          hudsonHomeRelative(false)
         }
     }
+    label("!master")
     steps {
         shell('''#!/bin/bash -ex
 
-# Create temp directory for repositories
 mkdir ${WORKSPACE}/tmp
-
-# Copy pluggable SCM package into workspace
-mkdir ${WORKSPACE}/job_dsl_additional_classpath
-cp -r ${PLUGGABLE_SCM_PROVIDER_PATH}pluggable $WORKSPACE/job_dsl_additional_classpath
 
 # Output SCM provider ID to a properties file
 echo SCM_PROVIDER_ID=$(echo ${SCM_PROVIDER} | cut -d "(" -f2 | cut -d ")" -f1) > scm_provider_id.properties
 ''')
+        environmentVariables {
+            propertiesFile('scm_provider_id.properties')
+        }
         systemGroovyCommand('''
 import com.cloudbees.plugins.credentials.*;
 import com.cloudbees.plugins.credentials.common.*;
@@ -159,7 +166,7 @@ if(credentialId != null){
   fp.write("SCM_USERNAME="+credentialInfo[0]+"\\nSCM_PASSWORD="+credentialInfo[1], null);
 }
 '''){
-classpath('$WORKSPACE/job_dsl_additional_classpath/')
+classpath('${PLUGGABLE_SCM_PROVIDER_PATH}')
 }
         shell('''#!/bin/bash -ex
 
@@ -228,9 +235,6 @@ fi
         environmentVariables {
           propertiesFile('${WORKSPACE}/carthome.properties')
         }
-        environmentVariables {
-            propertiesFile('scm_provider_id.properties')
-        }
         systemGroovyCommand('''
 import jenkins.model.*;
 import groovy.io.FileType;
@@ -288,10 +292,12 @@ def projectFolderName = envVarProperty.getProperty('PROJECT_NAME')
 def cartridgeFolder = envVarProperty.getProperty('CARTRIDGE_FOLDER')
 def overwriteRepos = envVarProperty.getProperty('OVERWRITE_REPOS')
 
+def scmNamespace = '';
+
 if (envVarProperty.hasProperty('SCM_NAMESPACE')){
-  def scmNamespace = envVarProperty.getProperty('SCM_NAMESPACE')
+  scmNamespace = envVarProperty.getProperty('SCM_NAMESPACE')
 }else{
-  scmNamespace = ""
+  scmNamespace = ''
 }
 
 def codeReviewEnabled = envVarProperty.getProperty('ENABLE_CODE_REVIEW')
