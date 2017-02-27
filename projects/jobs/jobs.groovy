@@ -95,13 +95,16 @@ return cartridge_urls;
         stringParam('CARTRIDGE_FOLDER', '', 'The folder within the project namespace where your cartridge will be loaded into.')
         stringParam('FOLDER_DISPLAY_NAME', '', 'Display name of the folder where the cartridge is loaded.')
         stringParam('FOLDER_DESCRIPTION', '', 'Description of the folder where the cartridge is loaded.')
-        booleanParam('ENABLE_CODE_REVIEW', false, 'Enables Gerrit Code Reviewing for the selected cartridge')
+        booleanParam('ENABLE_CODE_REVIEW', false, 'Enables Code Reviewing for the selected cartridge')
         booleanParam('OVERWRITE_REPOS', false, 'If ticked, existing code repositories (previously loaded by the cartridge) will be overwritten. For first time cartridge runs, this property is redundant and will perform the same behavior regardless.')
     }
     environmentVariables {
         groovy("return [SCM_KEY: org.apache.commons.lang.RandomStringUtils.randomAlphanumeric(20)]")
         env('WORKSPACE_NAME',workspaceFolderName)
         env('PROJECT_NAME',projectFolderName)
+        keepBuildVariables(true)
+        keepSystemVariables(true)
+        overrideBuildParameters(true)
     }
     wrappers {
         preBuildCleanup()
@@ -126,20 +129,34 @@ return cartridge_urls;
 mkdir ${WORKSPACE}/tmp
 
 # Output SCM provider ID to a properties file
-echo SCM_PROVIDER_ID=$(echo ${SCM_PROVIDER} | cut -d "(" -f2 | cut -d ")" -f1) > scm_provider_id.properties
+echo SCM_PROVIDER_ID=$(echo ${SCM_PROVIDER} | cut -d "(" -f2 | cut -d ")" -f1) > ${WORKSPACE}/scm.properties
+
+# Check if SCM namespace is specified
+if [ -z ${SCM_NAMESPACE} ] ; then
+    echo "SCM_NAMESPACE not specified, setting to PROJECT_NAME..."
+    if [ -z ${CARTRIDGE_FOLDER} ] ; then
+      SCM_NAMESPACE="${PROJECT_NAME}"
+    else
+      SCM_NAMESPACE="${PROJECT_NAME}"/"${CARTRIDGE_FOLDER}"
+    fi
+else
+    echo "SCM_NAMESPACE specified, injecting into properties file..."
+fi
+
+echo SCM_NAMESPACE=$(echo ${SCM_NAMESPACE} | cut -d "(" -f2 | cut -d ")" -f1) >> ${WORKSPACE}/scm.properties
 ''')
         environmentVariables {
-            propertiesFile('scm_provider_id.properties')
+            propertiesFile('${WORKSPACE}/scm.properties')
         }
         systemGroovyCommand('''
 import com.cloudbees.plugins.credentials.*;
 import com.cloudbees.plugins.credentials.common.*;
-import pluggable.scm.PropertiesSCMProviderDataStore
-import pluggable.scm.SCMProviderDataStore
+import pluggable.scm.PropertiesSCMProviderDataStore;
+import pluggable.scm.SCMProviderDataStore;
 import pluggable.configuration.EnvVarProperty;
-import pluggable.scm.helpers.HelperUtils
-import java.util.Properties
-import hudson.FilePath
+import pluggable.scm.helpers.PropertyUtils;
+import java.util.Properties;
+import hudson.FilePath;
 
 String scmProviderId = build.getEnvironment(listener).get('SCM_PROVIDER_ID')
 EnvVarProperty envVarProperty = EnvVarProperty.getInstance();
@@ -163,10 +180,11 @@ if(credentialId != null){
 
   channel = build.workspace.channel;
   fp = new FilePath(channel, build.workspace.toString() + "@tmp/secretFiles/" + build.getEnvVars()["SCM_KEY"])
-  fp.write("SCM_USERNAME="+credentialInfo[0]+"\\nSCM_PASSWORD="+credentialInfo[1], null);
+  fp.write("SCM_USERNAME="+credentialInfo[0]+"\\nSCM_PASSWORD="+credentialInfo[1], null);  
+
 }
 '''){
-classpath('${PLUGGABLE_SCM_PROVIDER_PATH}')
+  classpath('${PLUGGABLE_SCM_PROVIDER_PATH}')
 }
         shell('''#!/bin/bash -ex
 
@@ -193,24 +211,8 @@ set -x
 export CART_HOME=$(dirname $(find -name metadata.cartridge | head -1))
 echo "CART_HOME=${CART_HOME}" > ${WORKSPACE}/carthome.properties
 
-# Check if the user has enabled Gerrit Code reviewing
-if [ "$ENABLE_CODE_REVIEW" == true ]; then
-    permissions_repo="${PROJECT_NAME}/permissions-with-review"
-else
-    permissions_repo="${PROJECT_NAME}/permissions"
-fi
-
-# Check if folder was specified
-if [ -z ${CARTRIDGE_FOLDER} ] ; then
-    echo "Folder name not specified..."
-    repo_namespace="${PROJECT_NAME}"
-else
-    echo "Folder name specified, changing project namespace value.."
-    repo_namespace="${PROJECT_NAME}/${CARTRIDGE_FOLDER}"
-fi
-
 # Output SCM provider ID to a properties file
-echo GIT_SSH="${GIT_SSH}" >> scm_provider.properties
+echo GIT_SSH="${GIT_SSH}" >> ${WORKSPACE}/scm_provider.properties
 
 # Provision one-time infrastructure
 if [ -d ${WORKSPACE}/${CART_HOME}/infra ]; then
@@ -235,6 +237,9 @@ fi
         environmentVariables {
           propertiesFile('${WORKSPACE}/carthome.properties')
         }
+        environmentVariables {
+          propertiesFile('${WORKSPACE}/scm_provider.properties')
+        }
         systemGroovyCommand('''
 import jenkins.model.*;
 import groovy.io.FileType;
@@ -258,13 +263,13 @@ xmlFiles.each {
     configXml.getBytes());
 
   String jobName = configFile.getName()
-  		.substring(0,
+      .substring(0,
                    configFile
                    .getName()
-                   	.lastIndexOf('.'));
+                    .lastIndexOf('.'));
 
   jenkinsInstace.getItem(projectName,jenkinsInstace)
-  	.createProjectFromXML(jobName, xmlStream);
+    .createProjectFromXML(jobName, xmlStream);
 
   println '[INFO] - Imported XML job config: ' + it.toURI();
 }
@@ -276,7 +281,8 @@ xmlFiles.each {
   groovy {
     scriptSource {
         stringScriptSource {
-            command('''import pluggable.scm.SCMProvider;
+            command('''
+import pluggable.scm.SCMProvider;
 import pluggable.scm.SCMProviderHandler;
 import pluggable.configuration.EnvVarProperty;
 
@@ -289,18 +295,23 @@ SCMProvider scmProvider = SCMProviderHandler.getScmProvider(scmProviderId, Syste
 
 def workspace = envVarProperty.getProperty('WORKSPACE')
 def projectFolderName = envVarProperty.getProperty('PROJECT_NAME')
-def cartridgeFolder = envVarProperty.getProperty('CARTRIDGE_FOLDER')
 def overwriteRepos = envVarProperty.getProperty('OVERWRITE_REPOS')
+def codeReviewEnabled = envVarProperty.getProperty('ENABLE_CODE_REVIEW')
 
+def cartridgeFolder = '';
 def scmNamespace = '';
 
+// Checking if the parameters have been set and they exist within the env properties
+if (envVarProperty.hasProperty('CARTRIDGE_FOLDER')){
+  cartridgeFolder = envVarProperty.getProperty('CARTRIDGE_FOLDER')
+}else{
+  cartridgeFolder = ''
+}
 if (envVarProperty.hasProperty('SCM_NAMESPACE')){
   scmNamespace = envVarProperty.getProperty('SCM_NAMESPACE')
 }else{
   scmNamespace = ''
 }
-
-def codeReviewEnabled = envVarProperty.getProperty('ENABLE_CODE_REVIEW')
 
 String repoNamespace = null;
 
@@ -318,7 +329,8 @@ if (scmNamespace != null && !scmNamespace.isEmpty()){
   }
 }
 
-scmProvider.createScmRepos(workspace, repoNamespace, codeReviewEnabled, overwriteRepos)''')
+scmProvider.createScmRepos(workspace, repoNamespace, codeReviewEnabled, overwriteRepos)
+''')
                 }
             }
             parameters("")
@@ -374,6 +386,11 @@ def cartridgeFolder = folder(cartridgeFolderName) {
                 }
             }
         }
+       environmentVariables {
+         env('PLUGGABLE_SCM_PROVIDER_PATH','${JENKINS_HOME}/userContent/job_dsl_additional_classpath/')
+         env('PLUGGABLE_SCM_PROVIDER_PROPERTIES_PATH','${JENKINS_HOME}/userContent/datastore/pluggable/scm')
+         propertiesFile('${WORKSPACE}/scm.properties')
+       }
         dsl {
             external("cartridge/**/jenkins/jobs/dsl/*.groovy")
             additionalClasspath("job_dsl_additional_classpath")
