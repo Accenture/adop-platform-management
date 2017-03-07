@@ -121,7 +121,7 @@ return cartridge_urls;
           hudsonHomeRelative(false)
         }
     }
-    label("!master")
+    label("!master && !windows && !ios")
     steps {
         shell('''#!/bin/bash -ex
 
