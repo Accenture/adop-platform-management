@@ -111,7 +111,7 @@ return cartridge_urls;
         maskPasswords()
         credentialsBinding {
             file('SCM_SSH_KEY', 'adop-jenkins-private')
-        }        
+        }
         copyToSlaveBuildWrapper {
           includes("**/**")
           excludes("")
@@ -157,30 +157,46 @@ import pluggable.scm.helpers.PropertyUtils;
 import java.util.Properties;
 import hudson.FilePath;
 
-String scmProviderId = build.getEnvironment(listener).get('SCM_PROVIDER_ID')
-EnvVarProperty envVarProperty = EnvVarProperty.getInstance();
+println "[INFO] - Attempting to inject SCM provider credentials. Note: Not all SCM provider require a username/password combination."
 
-envVarProperty.setVariableBindings(build.getEnvironment(listener));
+String scmProviderId = build.getEnvironment(listener).get('SCM_PROVIDER_ID');
+
+EnvVarProperty envVarProperty = EnvVarProperty.getInstance();
+envVarProperty.setVariableBindings(
+  build.getEnvironment(listener));
+
 SCMProviderDataStore scmProviderDataStore = new PropertiesSCMProviderDataStore();
 Properties scmProviderProperties = scmProviderDataStore.get(scmProviderId);
 
-String credentialId = scmProviderProperties.get("loader.credentialId")
+String credentialId = scmProviderProperties.get("loader.credentialId");
 
 if(credentialId != null){
 
-  def username_matcher = CredentialsMatchers.withId(credentialId);
+  if(credentialId.equals("")){
+    println "[WARN] - load.credentialId property provided but is an empty string. SCM providers that require a username/password may not behave as expected.";
+    println "[WARN] - Credential secret file not created."
+  }else{
+    def username_matcher = CredentialsMatchers.withId(credentialId);
+    def available_credentials = CredentialsProvider.lookupCredentials(StandardUsernameCredentials.class);
 
-  def available_credentials = CredentialsProvider.lookupCredentials(
-    StandardUsernameCredentials.class
-  );
+    def credential = CredentialsMatchers.firstOrNull(available_credentials, username_matcher);
 
-  credentialInfo =  [CredentialsMatchers.firstOrNull(available_credentials, username_matcher).username,
-                  CredentialsMatchers.firstOrNull(available_credentials, username_matcher).password];
+    if(credential == null){
+      println "[WARN] - Credential with id " + credentialId + " not found."
+      println "[WARN] - SCM providers that require a username/password may not behave as expected.";
+      println "[WARN] - Credential secret file not created."
+    }else{
+      credentialInfo = [credential.username, credential.password];
 
-  channel = build.workspace.channel;
-  fp = new FilePath(channel, build.workspace.toString() + "@tmp/secretFiles/" + build.getEnvVars()["SCM_KEY"])
-  fp.write("SCM_USERNAME="+credentialInfo[0]+"\\nSCM_PASSWORD="+credentialInfo[1], null);  
+      channel = build.workspace.channel;
+      filePath = new FilePath(channel, build.workspace.toString() + "@tmp/secretFiles/" + build.getEnvVars()["SCM_KEY"]);
+      filePath.write("SCM_USERNAME="+credentialInfo[0]+"\\nSCM_PASSWORD="+credentialInfo[1], null);
 
+      println "[INFO] - Credentials injected."
+    }
+  }
+}else{
+  println "[INFO] - No credential to inject. SCM provider load.credentialId property not found."
 }
 '''){
   classpath('${PLUGGABLE_SCM_PROVIDER_PATH}')
