@@ -4,6 +4,14 @@ def platformToolsGitURL = "ssh://jenkins@gerrit:29418/platform-management"
 def platformManagementFolderName= "/Platform_Management"
 def platformManagementFolder = folder(platformManagementFolderName) { displayName('Platform Management') }
 
+def adopPlatformManagementVersion = (binding.variables.containsKey("ADOP_PLATFORM_MANAGEMENT_VERSION")) ? "${ADOP_PLATFORM_MANAGEMENT_VERSION}".toString() : '';
+def adopPlatformManagementVersionRef = '${ADOP_PLATFORM_MANAGEMENT_VERSION}';
+
+if (!adopPlatformManagementVersion.matches("[a-fA-F0-9]{8,40}")) {
+  out.println("[WARN] ADOP_PLATFORM_MANAGEMENT_VERSION is set to '" + adopPlatformManagementVersion + "' which is not a valid hash - defaulting to '*/master'")
+  adopPlatformManagementVersionRef = '*/master';
+}
+
 // Jobs
 def loadCartridgeJob = freeStyleJob(platformManagementFolderName + "/Load_Cartridge_List")
  
@@ -66,7 +74,7 @@ done < ${WORKSPACE}/platform-management/cartridges.txt''')
                 url("${platformToolsGitURL}")
                 credentials("adop-jenkins-master")
             }
-            branch("*/master")
+            branch(adopPlatformManagementVersionRef)
             relativeTargetDir('platform-management')
         }
     }
