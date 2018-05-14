@@ -39,7 +39,8 @@ loadCartridgeJob.with{
           name('CARTRIDGE_CLONE_URL')
           choiceListProvider {
             systemGroovyChoiceListProvider {
-              scriptText('''
+              groovyScript {
+                script('''
 import jenkins.model.*
 
 nodes = Jenkins.instance.globalNodeProperties
@@ -83,6 +84,8 @@ URLS.split(';').each{ source_url ->
 
 return cartridge_urls;
 ''')
+                sandbox(true)
+              }
               defaultChoice('Top')
               usePredefinedVariables(false)
             }
@@ -95,7 +98,8 @@ return cartridge_urls;
           name('SCM_PROVIDER')
           choiceListProvider {
             systemGroovyChoiceListProvider {
-              scriptText('''
+              groovyScript { 
+                script('''
 import hudson.model.*;
 import hudson.util.*;
 
@@ -125,9 +129,10 @@ for (File fileEntry : folder.listFiles()) {
 if (providerList.isEmpty()) {
     providerList.add("No SCM providers found")
 }
-
 return providerList;
 ''')
+                sandbox(true)
+              }
               defaultChoice('Top')
               usePredefinedVariables(false)
             }
@@ -145,7 +150,6 @@ return providerList;
         booleanParam('OVERWRITE_REPOS', false, 'If ticked, existing code repositories (previously loaded by the cartridge) will be overwritten. For first time cartridge runs, this property is redundant and will perform the same behavior regardless.')
     }
     environmentVariables {
-        groovy("return [SCM_KEY: org.apache.commons.lang.RandomStringUtils.randomAlphanumeric(20)]")
         env('WORKSPACE_NAME',workspaceFolderName)
         env('PROJECT_NAME',projectFolderName)
         keepBuildVariables(true)
@@ -166,6 +170,19 @@ return providerList;
           includeAntExcludes(false)
           relativeTo('''${JENKINS_HOME}/userContent''')
           hudsonHomeRelative(false)
+        }
+        envInjectBuildWrapper {
+          info {
+            secureGroovyScript {
+                script("return [SCM_KEY: org.apache.commons.lang.RandomStringUtils.randomAlphanumeric(20)]")
+                sandbox(true)
+            }
+            propertiesFilePath(null)
+            propertiesContent(null)
+            scriptFilePath(null)
+            scriptContent(null)
+            loadFilesFromMaster(false)
+           }
         }
     }
     label("!master && !windows && !ios")
@@ -296,13 +313,18 @@ if [ -d ${WORKSPACE}/${CART_HOME}/jenkins/jobs ]; then
     fi
 fi
 ''')
-        environmentVariables {
-          propertiesFile('${WORKSPACE}/carthome.properties')
-        }
-        environmentVariables {
-          propertiesFile('${WORKSPACE}/scm_provider.properties')
-        }
-        systemGroovyCommand('''
+    environmentVariables {
+      propertiesFile('${WORKSPACE}/carthome.properties')
+    }
+    environmentVariables {
+      propertiesFile('${WORKSPACE}/scm_provider.properties')
+    }
+
+    systemGroovy {
+        source {
+            stringSystemScriptSource {
+                script {
+                script('''
 import jenkins.model.*;
 import groovy.io.FileType;
 import hudson.FilePath;
@@ -336,6 +358,11 @@ xmlFiles.each {
   println '[INFO] - Imported XML job config: ' + it.toURI();
 }
 ''')
+                    sandbox(true)
+                }
+            }
+        }
+    }
   environmentVariables {
       env('PLUGGABLE_SCM_PROVIDER_PATH','${WORKSPACE}/job_dsl_additional_classpath/')
       env('PLUGGABLE_SCM_PROVIDER_PROPERTIES_PATH','${WORKSPACE}/datastore/pluggable/scm')
@@ -498,7 +525,7 @@ loadCartridgeCollectionJob.with{
     println(cartridges);
     println "Obtained values locally...";
 
-    cartridgeCount = cartridges.size
+    cartridgeCount = cartridges.size()
     println "Number of cartridges: ${cartridgeCount}"
 
     def projectWorkspace =  "''' + projectFolderName + '''"
@@ -523,7 +550,7 @@ loadCartridgeCollectionJob.with{
     slurper = null
 
     def cartridges = []
-    for ( i = 0 ; i < data.cartridges.size; i++ ) {
+    for ( i = 0 ; i < data.cartridges.size(); i++ ) {
         String url = data.cartridges[i].cartridge.url
         String desc = data.cartridges[i].folder.description
         String folder = data.cartridges[i].folder.name
@@ -542,7 +569,7 @@ loadCartridgeCollectionJob.with{
     return cartridges
 }
             ''')
-            sandbox()
+            sandbox(true)
         }
     }
 }
