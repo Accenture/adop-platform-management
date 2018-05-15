@@ -158,7 +158,10 @@ return providerList;
     }
     wrappers {
         preBuildCleanup()
-        injectPasswords()
+        injectPasswords {
+            injectGlobalPasswords(true)
+            maskPasswordParameters(true)
+        }
         maskPasswords()
         credentialsBinding {
             file('SCM_SSH_KEY', 'adop-jenkins-private')

@@ -31,7 +31,10 @@ loadPlatformExtensionJob.with{
     label("aws")
     wrappers {
       preBuildCleanup()
-      injectPasswords()
+      injectPasswords {
+        injectGlobalPasswords(true)
+        maskPasswordParameters(true)
+      }
       maskPasswords()
       sshAgent("adop-jenkins-master")
       credentialsBinding {
