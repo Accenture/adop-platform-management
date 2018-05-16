@@ -20,10 +20,11 @@ setupCustomCartridge.with{
         shell('''#!/bin/bash -ex
 
 echo "Extracting Custom_Cartridge library to additonal classpath location: /var/jenkins_home/userContent/job_dsl_additional_classpath/"
-cp -r src/main/groovy/* /var/jenkins_home/userContent/job_dsl_additional_classpath/
+cp -r src/main/groovy/* $JENKINS_HOME/userContent/job_dsl_additional_classpath/
 echo "******************"
 
 echo "Library contents: "
+ls -ltr $JENKINS_HOME/userContent/job_dsl_additional_classpath/
 ''')
     }
     scm {
