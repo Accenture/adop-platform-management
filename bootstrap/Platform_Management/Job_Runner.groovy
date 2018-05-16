@@ -25,8 +25,11 @@ build job: 'Platform_Management/Setup_Gerrit'
 
 // Setup the Pluggable Library
 build job: 'Platform_Management/Setup_Pluggable_Library'
+
+// Setup the Custom_Cartridge Library
+build job: 'Platform_Management/Setup_Custom_Cartridge_Library'
 ''')
 sandbox()
         }
     }
-} 
+}
