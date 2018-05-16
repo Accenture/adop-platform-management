@@ -195,7 +195,7 @@ return providerList;
 mkdir ${WORKSPACE}/tmp
 
 # Output SCM provider ID to a properties file
-echo SCM_PROVIDER_ID=$(echo ${SCM_PROVIDER} | cut -d "(" -f2 | cut -d ")" -f1) > ${WORKSPACE}/scm.properties
+echo SCM_PROVIDER_ID=$(echo ${SCM_PROVIDER} | cut -d "(" -f2 | cut -d ")" -f1) > ${WORKSPACE}/cartridge.properties
 
 # Check if SCM namespace is specified
 if [ -z ${SCM_NAMESPACE} ] ; then
@@ -209,10 +209,10 @@ else
     echo "SCM_NAMESPACE specified, injecting into properties file..."
 fi
 
-echo SCM_NAMESPACE=$(echo ${SCM_NAMESPACE} | cut -d "(" -f2 | cut -d ")" -f1) >> ${WORKSPACE}/scm.properties
+echo SCM_NAMESPACE=$(echo ${SCM_NAMESPACE} | cut -d "(" -f2 | cut -d ")" -f1) >> ${WORKSPACE}/cartridge.properties
 ''')
         environmentVariables {
-            propertiesFile('${WORKSPACE}/scm.properties')
+            propertiesFile('${WORKSPACE}/cartridge.properties')
         }
         systemGroovyCommand('''
 import com.cloudbees.plugins.credentials.*;
@@ -266,7 +266,7 @@ if(credentialId != null){
   println "[INFO] - No credential to inject. SCM provider load.credentialId property not found."
 }
 '''){
-  classpath('${PLUGGABLE_SCM_PROVIDER_PATH}')
+  classpath("${PLUGGABLE_SCM_PROVIDER_PATH}")
 }
         shell('''#!/bin/bash -ex
 
@@ -432,6 +432,16 @@ scmProvider.createScmRepos(workspace, repoNamespace, codeReviewEnabled, overwrit
             groovyName("ADOP Groovy")
             classPath('''${WORKSPACE}/job_dsl_additional_classpath''')
         }
+        environmentVariables {
+         env('PLUGGABLE_SCM_PROVIDER_PATH','${JENKINS_HOME}/userContent/job_dsl_additional_classpath/')
+         env('PLUGGABLE_SCM_PROVIDER_PROPERTIES_PATH','${JENKINS_HOME}/userContent/datastore/pluggable/scm')
+         env('CARTRIDGE_FOLDER','${CARTRIDGE_FOLDER}')
+         env('WORKSPACE_NAME',workspaceFolderName)
+         env('PROJECT_NAME',projectFolderName)
+         env('FOLDER_DISPLAY_NAME','${FOLDER_DISPLAY_NAME}')
+         env('FOLDER_DESCRIPTION','${FOLDER_DESCRIPTION}')
+         propertiesFile('${WORKSPACE}/cartridge.properties')
+       }
         conditionalSteps {
             condition {
                 shell ('''#!/bin/bash
@@ -440,9 +450,11 @@ scmProvider.createScmRepos(workspace, repoNamespace, codeReviewEnabled, overwrit
 
 if [ -z ${CARTRIDGE_FOLDER} ] ; then
     echo "Folder name not specified, moving on..."
+    echo PROJECT_NAME=${PROJECT_NAME} >> cartridge.properties
     exit 1
 else
     echo "Folder name specified, changing project name value.."
+    echo PROJECT_NAME=${PROJECT_NAME}/${CARTRIDGE_FOLDER} >> cartridge.properties
     exit 0
 fi
                 ''')
@@ -450,11 +462,7 @@ fi
             runner('RunUnstable')
             steps {
                 environmentVariables {
-                    env('CARTRIDGE_FOLDER','${CARTRIDGE_FOLDER}')
-                    env('WORKSPACE_NAME',workspaceFolderName)
-                    env('PROJECT_NAME',projectFolderName + '/${CARTRIDGE_FOLDER}')
-                    env('FOLDER_DISPLAY_NAME','${FOLDER_DISPLAY_NAME}')
-                    env('FOLDER_DESCRIPTION','${FOLDER_DESCRIPTION}')
+                  propertiesFile('${WORKSPACE}/cartridge.properties')
                 }
                 dsl {
                     text('''// Creating folder to house the cartridge...
@@ -479,9 +487,7 @@ def cartridgeFolder = folder(cartridgeFolderName) {
             }
         }
        environmentVariables {
-         env('PLUGGABLE_SCM_PROVIDER_PATH','${JENKINS_HOME}/userContent/job_dsl_additional_classpath/')
-         env('PLUGGABLE_SCM_PROVIDER_PROPERTIES_PATH','${JENKINS_HOME}/userContent/datastore/pluggable/scm')
-         propertiesFile('${WORKSPACE}/scm.properties')
+         propertiesFile('${WORKSPACE}/cartridge.properties')
        }
         dsl {
             external("cartridge/**/jenkins/jobs/dsl/*.groovy")
