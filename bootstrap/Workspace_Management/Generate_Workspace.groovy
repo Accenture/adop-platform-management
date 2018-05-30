@@ -26,7 +26,10 @@ generateWorkspaceJob.with{
     label("ldap")
     wrappers {
         preBuildCleanup()
-        injectPasswords()
+        injectPasswords {
+            injectGlobalPasswords(true)
+            maskPasswordParameters(true)
+        }
         maskPasswords()
         environmentVariables {
             env('DC',"${LDAP_ROOTDN}")
