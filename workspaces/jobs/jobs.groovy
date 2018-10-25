@@ -1,5 +1,5 @@
 // Constants
-def platformToolsGitURL = "ssh://jenkins@gerrit:29418/platform-management"
+def platformToolsGitURL = "https://github.com/Accenture/adop-platform-management.git"
 
 def adopPlatformManagementVersion = (binding.variables.containsKey("ADOP_PLATFORM_MANAGEMENT_VERSION")) ? "${ADOP_PLATFORM_MANAGEMENT_VERSION}".toString() : '';
 def adopPlatformManagementVersionRef = '${ADOP_PLATFORM_MANAGEMENT_VERSION}';
@@ -72,18 +72,7 @@ set -e
 ADMIN_USERS=$(echo ${ADMIN_USERS} | tr ',' ' ')
 DEVELOPER_USERS=$(echo ${DEVELOPER_USERS} | tr ',' ' ')
 VIEWER_USERS=$(echo ${VIEWER_USERS} | tr ',' ' ')
-
-# Gerrit
-for user in $ADMIN_USERS $DEVELOPER_USERS $VIEWER_USERS
-do
-        username=$(echo ${user} | cut -d'@' -f1)
-        ${WORKSPACE}/common/gerrit/create_user.sh -g http://gerrit:8080/gerrit -u "${username}" -p "${username}"
-done''')
-        shell('''#!/bin/bash -ex
-# Gerrit
-source ${WORKSPACE}/projects/gerrit/configure.sh
-# Generate second permission repo with enabled code-review
-source ${WORKSPACE}/projects/gerrit/configure.sh -r permissions-with-review''')
+''')
         dsl {
             external("projects/jobs/**/*.groovy")
         }

@@ -1,1 +1,0 @@
-ldap:cn=administrators,ou=groups,###DC###	ldap/administrators

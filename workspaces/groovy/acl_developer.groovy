@@ -18,7 +18,7 @@ if (currentAuthenticationStrategy instanceof RoleBasedAuthorizationStrategy) {
     // Variables
     def namespace = build.getEnvironment(listener).get('WORKSPACE_NAME')
     def ldapNamespace = build.getEnvironment(listener).get('WORKSPACE_NAME')
-    
+
     def ldapGroupName = ldapNamespace + "." + roleName
     RoleBasedAuthorizationStrategy roleBasedAuthenticationStrategy = currentAuthenticationStrategy;
 
@@ -29,7 +29,7 @@ if (currentAuthenticationStrategy instanceof RoleBasedAuthorizationStrategy) {
     /// Workspace Folder
     def folderRoleName = namespace + "." + roleName + ".Folder"
     def folderRolePattern = "^" + namespace + "\$"
-    
+
     // Create set of permissions
     Set<Permission> folderPermissions = new HashSet<Permission>();
     folderPermissions.add(Permission.fromId("hudson.model.Item.Create"));
@@ -37,11 +37,9 @@ if (currentAuthenticationStrategy instanceof RoleBasedAuthorizationStrategy) {
     folderPermissions.add(Permission.fromId("hudson.model.Item.Workspace"));
     folderPermissions.add(Permission.fromId("com.cloudbees.plugins.credentials.CredentialsProvider.Delete"));
     folderPermissions.add(Permission.fromId("com.cloudbees.plugins.credentials.CredentialsProvider.ManageDomains"));
-    folderPermissions.add(Permission.fromId("com.sonyericsson.hudson.plugins.gerrit.trigger.PluginImpl.Retrigger"));
     folderPermissions.add(Permission.fromId("hudson.model.Item.Cancel"));
     folderPermissions.add(Permission.fromId("hudson.model.Item.Read"));
     folderPermissions.add(Permission.fromId("com.cloudbees.plugins.credentials.CredentialsProvider.View"));
-    folderPermissions.add(Permission.fromId("com.sonyericsson.hudson.plugins.gerrit.trigger.PluginImpl.ManualTrigger"));
     folderPermissions.add(Permission.fromId("com.cloudbees.plugins.credentials.CredentialsProvider.Create"));
     folderPermissions.add(Permission.fromId("com.cloudbees.plugins.credentials.CredentialsProvider.Update"));
     folderPermissions.add(Permission.fromId("hudson.model.Item.Build"));
@@ -55,11 +53,11 @@ if (currentAuthenticationStrategy instanceof RoleBasedAuthorizationStrategy) {
 
     // Assign the role
     roleBasedAuthenticationStrategy.assignRole(RoleBasedAuthorizationStrategy.PROJECT,folderRole,ldapGroupName);
-    
+
     /// Workspace Folder Contents
     def contentRoleName = namespace + "." + roleName + ".Content"
     def contentRolePattern = "^" + namespace + "/(?!Project_Management).*"
-    
+
     // Create set of permissions
     Set<Permission> contentPermissions = new HashSet<Permission>();
     contentPermissions.add(Permission.fromId("hudson.model.Item.Create"));
@@ -88,7 +86,7 @@ if (currentAuthenticationStrategy instanceof RoleBasedAuthorizationStrategy) {
 
     // Assign the role
     roleBasedAuthenticationStrategy.assignRole(RoleBasedAuthorizationStrategy.PROJECT,contentRole,ldapGroupName);
-    
+
     println "Developer role created...OK"
 
     // Save the state
