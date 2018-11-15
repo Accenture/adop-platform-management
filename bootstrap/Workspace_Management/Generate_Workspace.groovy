@@ -1,5 +1,5 @@
 // Constants
-def platformToolsGitURL = "ssh://jenkins@gerrit:29418/platform-management"
+def platformToolsGitURL = "https://github.com/Accenture/adop-platform-management.git"
 
 def workspaceManagementFolderName= "/Workspace_Management"
 def workspaceManagementFolder = folder(workspaceManagementFolderName) { displayName('Workspace Management') }
@@ -14,7 +14,7 @@ if (!adopPlatformManagementVersion.matches("[a-fA-F0-9]{8,40}")) {
 
 // Jobs
 def generateWorkspaceJob = freeStyleJob(workspaceManagementFolderName + "/Generate_Workspace")
- 
+
 // Setup generateWorkspaceJob
 generateWorkspaceJob.with{
     parameters{
@@ -63,12 +63,7 @@ ADMIN_USERS=$(echo ${ADMIN_USERS} | tr ',' ' ')
 DEVELOPER_USERS=$(echo ${DEVELOPER_USERS} | tr ',' ' ')
 VIEWER_USERS=$(echo ${VIEWER_USERS} | tr ',' ' ')
 
-# Gerrit
-for user in $ADMIN_USERS $DEVELOPER_USERS $VIEWER_USERS
-do
-        username=$(echo ${user} | cut -d'@' -f1)
-        ${WORKSPACE}/common/gerrit/create_user.sh -g http://gerrit:8080/gerrit -u "${username}" -p "${username}"
-done''')
+''')
         dsl {
             external("workspaces/jobs/**/*.groovy")
         }
@@ -86,4 +81,4 @@ done''')
             branch(adopPlatformManagementVersionRef)
         }
     }
-} 
+}

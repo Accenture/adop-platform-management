@@ -3,12 +3,12 @@ def platformManagementFolderName= "/Platform_Management"
 def platformManagementFolder = folder(platformManagementFolderName) { displayName('Platform Management') }
 
 def rootUrl = "${ROOT_URL}"
-gerritRootUrl = rootUrl.replaceAll("jenkins","gerrit")
+gitlabRootUrl = rootUrl.replaceAll("jenkins","gitlab")
 
 
 // Jobs
 def generateExampleWorkspaceJob = workflowJob(platformManagementFolderName + "/Generate_Example_Workspace")
- 
+
 generateExampleWorkspaceJob.with{
     parameters{
         stringParam("projectName","ExampleProject","")
@@ -19,8 +19,8 @@ generateExampleWorkspaceJob.with{
         stringParam("workspaceAdmin","Admin","")
         stringParam("workspaceDeveloper","Developer","")
         stringParam("workspaceViewer","Viewer","")
-        stringParam("cartridgeURL","ssh://jenkins@gerrit:29418/cartridges/adop-cartridge-java.git","")
-        stringParam("scmProvider",gerritRootUrl + " - ssh (adop-gerrit-ssh)","")
+        stringParam("cartridgeURL","https://github.com/Accenture/adop-cartridge-java.git","")
+        stringParam("scmProvider",gitlabRootUrl + " - ssh (adop-gitlab-ssh)","")
     }
     properties {
         rebuild {
@@ -50,7 +50,7 @@ node {
 
     // Setup Project
     try {
-        result = build job: "${workspaceName}/Project_Management/Generate_Project", parameters: [[$class: 'StringParameterValue', name: 'PROJECT_NAME', value: "${projectName}"], [$class: 'StringParameterValue', name: 'ADMIN_USERS', value: "${projectName}${projectAdmin}"], [$class: 'StringParameterValue', name: 'DEVELOPER_USERS', value: "${projectName}${projectDeveloper}"], [$class: 'StringParameterValue', name: 'VIEWER_USERS', value: "${projectName}${projectViewer}"]]
+        result = build job: "${workspaceName}/Project_Management/Generate_Project", parameters: [[$class: 'StringParameterValue', name: 'PROJECT_NAME', value: "${projectName}"],[$class: 'BooleanParameterValue', name: 'CUSTOM_SCM_NAMESPACE', value: Boolean.valueOf('true')],[$class: 'StringParameterValue', name: 'ADMIN_USERS', value: "${projectName}${projectAdmin}"], [$class: 'StringParameterValue', name: 'DEVELOPER_USERS', value: "${projectName}${projectDeveloper}"], [$class: 'StringParameterValue', name: 'VIEWER_USERS', value: "${projectName}${projectViewer}"]]
         echo "RESULT of Project Job:" + result.result
     } catch (Exception err) {
         if (err.toString().contains('FAILURE')){
@@ -66,7 +66,7 @@ node {
     // Setup Load Cartridge
     try {
         retry(5) {
-            result = build job: "${workspaceName}/${projectName}/Cartridge_Management/Load_Cartridge", parameters: [[$class: 'StringParameterValue', name: 'CARTRIDGE_CLONE_URL', value: "${cartridgeURL}"], [$class: 'StringParameterValue', name: 'SCM_PROVIDER', value: "${scmProvider}"]]
+            result = build job: "${workspaceName}/${projectName}/Cartridge_Management/Load_Cartridge", parameters: [[$class: 'StringParameterValue', name: 'CARTRIDGE_CLONE_URL', value: "${cartridgeURL}"],[$class: 'StringParameterValue', name: 'SCM_NAMESPACE', value: "${workspaceName}"], [$class: 'StringParameterValue', name: 'SCM_PROVIDER', value: "${scmProvider}"], [$class: 'StringParameterValue', name: 'CARTRIDGE_FOLDER', value: "${workspaceName}"]]
             echo "RESULT of Load Cartridge Job:" + result.result
         }
     } catch (Exception err) {
@@ -84,4 +84,4 @@ node {
 sandbox()
         }
     }
-} 
+}

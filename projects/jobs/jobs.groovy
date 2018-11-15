@@ -1,7 +1,5 @@
 // Constants
-def gerritBaseUrl = "ssh://jenkins@gerrit:29418"
-def cartridgeBaseUrl = gerritBaseUrl + "/cartridges"
-def platformToolsGitUrl = gerritBaseUrl + "/platform-management"
+def platformToolsGitURL = "https://github.com/Accenture/adop-platform-management.git"
 
 def adopPlatformManagementVersion = (binding.variables.containsKey("ADOP_PLATFORM_MANAGEMENT_VERSION")) ? "${ADOP_PLATFORM_MANAGEMENT_VERSION}".toString() : '';
 def adopPlatformManagementVersionRef = '${ADOP_PLATFORM_MANAGEMENT_VERSION}';
@@ -98,7 +96,7 @@ return cartridge_urls;
           name('SCM_PROVIDER')
           choiceListProvider {
             systemGroovyChoiceListProvider {
-              groovyScript { 
+              groovyScript {
                 script('''
 import hudson.model.*;
 import hudson.util.*;
@@ -166,6 +164,7 @@ return providerList;
         maskPasswords()
         credentialsBinding {
             file('SCM_SSH_KEY', 'adop-jenkins-private')
+            usernamePassword('GITLAB_TOKEN_USER', 'GITLAB_TOKEN_VALUE',  'gitlab_user_token')
         }
         copyToSlaveBuildWrapper {
           includes("**/**")
@@ -499,7 +498,7 @@ def cartridgeFolder = folder(cartridgeFolderName) {
         git {
             remote {
                 name("origin")
-                url("${platformToolsGitUrl}")
+                url("${platformToolsGitURL}")
                 credentials("adop-jenkins-master")
             }
             branch(adopPlatformManagementVersionRef)
